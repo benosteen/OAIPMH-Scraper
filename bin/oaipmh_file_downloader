@@ -1,0 +1,62 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import simplejson
+
+from redis import Redis
+
+import sys
+
+from recordsilo import Silo
+
+from time import sleep
+
+from datetime import datetime
+
+import logging
+
+from urllib import urlopen
+
+logger = logging.getLogger("CombineHarvester File downloader")
+logger.setLevel(logging.INFO)
+
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+ch.setFormatter(formatter)
+
+logger.addHandler(ch)
+
+def download_file(obj, url, filename):
+    fromtime = datetime.now()
+    logger.info("Starting download of %s (from %s) to object %s" % (filename, url, obj.item_id))
+    try:
+        obj.put_stream(filename, urlopen(url))
+        totime = datetime.now()
+        logger.info("Download completed in %s seconds" % ((totime-fromtime).seconds))
+    except Exception, e:
+        logger.error("Error downloading %s for pid:%s" % (url, obj.item_id))
+        logger.error("Exception: %s" % (e))
+
+if __name__ == "__main__":
+    if len(sys.argv) == 3:
+        r = Redis()
+        s = Silo(sys.argv[2])
+        while(True):
+            line = r.pop("%s" % sys.argv[1].strip())
+            if line and line != "STOP":
+                logger.debug("Found download task: %s" % line)
+                data = simplejson.loads(line)
+                logger.debug(data)
+                download_file(s.get_item(data['pid']), data['url'], data['filename'])
+            elif line == "STOP":
+                logger.info("Received STOP message - stopping.")
+                break
+            else:
+                logger.debug("No download task found; sleeping for 10 seconds")
+                sleep(10)
+    else:
+        print "Usage: oaipmh_file_downloader {redis queuename} {path to Silo store directory}"
+        sys.exit(2)
+
