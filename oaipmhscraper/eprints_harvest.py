@@ -50,7 +50,7 @@ class Eprints3Harvester(OAIPMHScraper):
             self.handle_file = self._get_file
 
     def _queue_file(self, pid, main, url, filename):
-        msg={'pid':pid, 'main':main,
+        msg={'pid':pid, 'silo':self.store.state['storage_dir'],
              'url':url, 'filename':filename}
         jmsg = simplejson.dumps(msg)
         self.r.push(self.download_queue, jmsg)

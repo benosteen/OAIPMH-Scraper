@@ -40,15 +40,16 @@ def download_file(obj, url, filename):
         logger.error("Exception: %s" % (e))
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3:
+    if len(sys.argv) == 2:
         r = Redis()
-        s = Silo(sys.argv[2])
         while(True):
             line = r.pop("%s" % sys.argv[1].strip())
             if line and line != "STOP":
                 logger.debug("Found download task: %s" % line)
                 data = simplejson.loads(line)
                 logger.debug(data)
+                logger.info("Saving to Silo %s" % data['silo'])
+                s = Silo(data['silo'])
                 download_file(s.get_item(data['pid']), data['url'], data['filename'])
             elif line == "STOP":
                 logger.info("Received STOP message - stopping.")
@@ -57,6 +58,6 @@ if __name__ == "__main__":
                 logger.debug("No download task found; sleeping for 10 seconds")
                 sleep(10)
     else:
-        print "Usage: oaipmh_file_downloader {redis queuename} {path to Silo store directory}"
+        print "Usage: oaipmh_file_downloader {redis queuename}"
         sys.exit(2)
 
