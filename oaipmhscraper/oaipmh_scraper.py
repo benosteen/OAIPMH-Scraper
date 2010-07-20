@@ -83,6 +83,18 @@ class OAIPMHScraper(object):
             self.state.sync()
             return self.state['identify']
 
+    def getSets(self, refresh_cache=False):
+        if self.state.has_key("sets") and not refresh_cache:
+            return self.state["sets"]
+        else:
+            sets_gen = self._c.handleVerb("ListSets", {})
+            sets = {}
+            for set_tuple in sets_gen:
+                sets[set_tuple[0]] = set_tuple[1:]
+            self.state["sets"] = sets
+            self.state.sync()
+            return sets
+            
     def getMetadataPrefixes(self, refresh_cache=False):
         if self.state.has_key("metadataPrefixes") and not refresh_cache:
             return self.state['metadataPrefixes']
@@ -93,12 +105,16 @@ class OAIPMHScraper(object):
             self.state.sync()
             return self.state['metadataPrefixes']
 
-    def getIdentifiers(self, update=False):
+    def getIdentifiers(self, update=False, set_id=None):
         args = {'metadataPrefix':'oai_dc'}
         if not self.state.has_key('harvests'):
             self.state['harvests'] = []
+            if set_id:
+                self.state['set'] = set_id
         self.state['harvests'].append(datetime.now().isoformat()[:19])   # YYYY-mm-DDTHH:MM:ss
         self.state.sync()
+        if self.state.has_key("set"):
+            args['set'] = self.state['set']
         for header in self._c.handleVerb("ListIdentifiers", args):
             pid = header.identifier()
             date=header.datestamp().isoformat()
@@ -114,7 +130,7 @@ class OAIPMHScraper(object):
             yield (pid, date)
 
     @mdprefixcheck
-    def getRecords(self, metadataPrefix=None, update=False, _from=None, _until=None):
+    def getRecords(self, metadataPrefix=None, update=False, set_id=None, _from=None, _until=None):
         if metadataPrefix in self.state['metadataPrefixes']:
             # if not global_metadata_registry.hasReader(metadataPrefix):
             class DumbReader(object):
@@ -128,9 +144,13 @@ class OAIPMHScraper(object):
                 args['until'] = _until
             if not self.state.has_key('harvests'):
                 self.state['harvests'] = []
+                if set_id:
+                    self.state['set'] = set_id
             if update and self.state['harvests']:
                 args['from'] = self.state['harvests'][-1]
             self.state['harvests'].append(datetime.now().isoformat()[:19])   # YYYY-mm-DDTHH:MM:ss
+            if self.state.has_key("set"):
+                args['set'] = self.state['set']
             self.state.sync()
             i = self._c.handleVerb("ListRecords", args)
             for header, element, _ in i:
